@@ -1,23 +1,22 @@
-# Set URL and file name
-url = "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2Fhousehold_power_consumption.zip"
-fileName = "household_power_consumption.txt"
-# Set the two dates of interest
-datesOfInterest = as.Date(c("2007-02-01", "2007-02-02"))
+# Set file paths
+url <- "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2FNEI_data.zip"
+fileName_pm25EmissionsData <- "summarySCC_PM25.rds"
+fileName_sourceClassifCodeTab <- "Source_Classification_Code.rds"
 
-# Download data 
-tempFile = tempfile()
+# Download data
+tempFile <- tempfile()
 download.file(url, tempFile)
-dat <- read.table(unz(tempFile, fileName), header = TRUE, sep = ";", na.strings = "?")
+dat_pm25Emissions <- readRDS(unzip(tempFile, fileName_pm25EmissionsData))
+dat_sourceClassifCodeTab <- readRDS(unzip(tempFile, fileName_sourceClassifCodeTab))
 
-# Transform Time and Date to the corresponding classes
-dat$Time = strptime(paste(dat$Date, dat$Time, sep = " "), "%d/%m/%Y %H:%M:%S")
-dat$Date = as.Date(dat$Date, "%d/%m/%Y")
+# Summarise Total United States PM 2.5 emissions by year
+pm25EmissionsByYear <- tapply(dat_pm25Emissions$Emissions, dat_pm25Emissions$year, sum)
 
-# Subset into the two dates of interest
-dat <- dat[dat$Date %in% datesOfInterest,]
-
-# Plot histogram of Global Active Power to PNG file
-hist(dat$Global_active_power, bg = 'white', col = 'red',
-     main = "Global Active Power", xlab = "Global Active Power (kilowatts)")
-dev.copy(png, filename = "plot1.png", width = 480, height = 480)
+# Plot to PNG file
+par(mar = c(5, 5, 4, 1))
+barplot(pm25EmissionsByYear / 1e6,
+      main = expression(paste("Total PM"[2.5], " Emissions in the United States, 1999-2008")),
+      xlab = "Year",
+      ylab = expression(paste("Total PM"[2.5], " Emissions (million tons)")), col = 'orange')
+dev.copy(png, filename = "plot1.png", width = 600)
 dev.off()

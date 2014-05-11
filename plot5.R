@@ -8,24 +8,23 @@ tempFile <- tempfile()
 download.file(url, tempFile)
 dat_pm25Emissions <- readRDS(unzip(tempFile, fileName_pm25EmissionsData))
 dat_sourceClassifCodeTab <- readRDS(unzip(tempFile, fileName_sourceClassifCodeTab))
+ 
+# Subset into PM 2.5 Emissions from Motor Vehicle sources ("ON-ROAD") in Baltimore, MD
+dat <- dat_pm25Emissions[dat_pm25Emissions$fips == 24510,]
+dat <- dat[dat$type == "ON-ROAD",][, c(4, 6)]
 
-# Subset into Baltimore, MD
-dat_pm25Emissions_BaltimoreMD = dat_pm25Emissions[dat_pm25Emissions$fips == 24510,]
-
-#  Sum Emissions by type and year
-dat <- dat_pm25Emissions_BaltimoreMD[, c("Type", "Year", "Emissions")]
+# Sum PM 2.5 Emissions by year
 library(reshape2)
-dat_melt <- melt(dat, id = c("type", "year"))
-dat_cast <- dcast(dat_melt, type + year ~ variable, sum)
+dat_melt <- melt(dat, id = "year")
+dat_cast <- dcast(dat_melt, year ~ variable, sum)
 
 # Plot to PNG file
 library(ggplot2)
 ggplot(dat_cast, aes(as.factor(year), Emissions)) + 
       geom_bar(fill = 'orange') +
-      facet_grid(. ~ type) +
-      theme(plot.title = element_text(size = rel(1.5))) +
+      theme(plot.title = element_text(size = rel(1))) +
       ggtitle(expression(paste("Total PM"[2.5],
-            " Emissions in Baltimore, MD, 1999-2008 by Type"))) +
+      " Emissions in Baltimore, MD, 1999-2008 from Motor Vehicle sources"))) +
       xlab("Year") + ylab(expression(paste("Total PM"[2.5], " Emissions (tons)")))
-dev.copy(png, filename = "plot3.png", width = 600)
+dev.copy(png, filename = "plot5.png", width = 600)
 dev.off()

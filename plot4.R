@@ -1,44 +1,48 @@
-# Set URL and file name
-url = "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2Fhousehold_power_consumption.zip"
-fileName = "household_power_consumption.txt"
-# Set the two dates of interest
-datesOfInterest = as.Date(c("2007-02-01", "2007-02-02"))
+# Set file paths
+url <- "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2FNEI_data.zip"
+fileName_pm25EmissionsData <- "summarySCC_PM25.rds"
+fileName_sourceClassifCodeTab <- "Source_Classification_Code.rds"
 
-# Download data 
-tempFile = tempfile()
+# Download data
+tempFile <- tempfile()
 download.file(url, tempFile)
-dat <- read.table(unz(tempFile, fileName), header = TRUE, sep = ";", na.strings = "?")
+dat_pm25Emissions <- readRDS(unzip(tempFile, fileName_pm25EmissionsData))
+dat_sourceClassifCodeTab <- readRDS(unzip(tempFile, fileName_sourceClassifCodeTab))
+ 
+# Identify Coal Combustion-related emission sources
+dat_sourceClassifCodeTab$matchCoal <-
+      (grepl('coal', as.character(dat_sourceClassifCodeTab$Short.Name), ignore.case = TRUE) +
+      grepl('coal', as.character(dat_sourceClassifCodeTab$EI.Sector), ignore.case = TRUE) +
+      grepl('coal', as.character(dat_sourceClassifCodeTab$SCC.Level.One), ignore.case = TRUE) +
+      grepl('coal', as.character(dat_sourceClassifCodeTab$SCC.Level.Two), ignore.case = TRUE) +
+      grepl('coal', as.character(dat_sourceClassifCodeTab$SCC.Level.Three), ignore.case = TRUE) +
+      grepl('coal', as.character(dat_sourceClassifCodeTab$SCC.Level.Four), ignore.case = TRUE)) > 0
+dat_sourceClassifCodeTab$matchComb <-
+      (grepl('comb', as.character(dat_sourceClassifCodeTab$Short.Name), ignore.case = TRUE) +
+      grepl('comb', as.character(dat_sourceClassifCodeTab$EI.Sector), ignore.case = TRUE) +
+      grepl('comb', as.character(dat_sourceClassifCodeTab$SCC.Level.One), ignore.case = TRUE) +
+      grepl('comb', as.character(dat_sourceClassifCodeTab$SCC.Level.Two), ignore.case = TRUE) +
+      grepl('comb', as.character(dat_sourceClassifCodeTab$SCC.Level.Three), ignore.case = TRUE) +
+      grepl('comb', as.character(dat_sourceClassifCodeTab$SCC.Level.Four), ignore.case = TRUE)) > 0
+dat_sourceClassifCodeTab$matchCoalComb <- dat_sourceClassifCodeTab$matchCoal & 
+      dat_sourceClassifCodeTab$matchComb
+scc_coalComb <- dat_sourceClassifCodeTab$SCC[dat_sourceClassifCodeTab$matchCoalComb]
 
-# Transform Time and Date to the corresponding classes
-dat$Time = strptime(paste(dat$Date, dat$Time, sep = " "), "%d/%m/%Y %H:%M:%S")
-dat$Date = as.Date(dat$Date, "%d/%m/%Y")
+# Subset into PM 2.5 Emissions from Coal Combustion-related sources
+dat <- dat_pm25Emissions[dat_pm25Emissions$SCC %in% scc_coalComb,][, c(4, 6)]
 
-# Subset into the two dates of interest
-dat <- dat[dat$Date %in% datesOfInterest,]
+# Sum PM 2.5 Emissions by year
+library(reshape2)
+dat_melt <- melt(dat, id = "year")
+dat_cast <- dcast(dat_melt, year ~ variable, sum)
 
-# Partition graphics screen into 2 x 2 quadrants, to be filled column-wise
-par(mfcol = c(2, 2), mar = c(4, 4, 1, 2))
-
-# Plot Global Active Power series
-plot(dat$Time, dat$Global_active_power, type = "l", bg = 'white', col= 'black',
-     xlab = "", ylab = "Global Active Power")
-
-# Plot Sub-Metering series
-plot(dat$Time, dat$Sub_metering_1, type = "l", bg = 'white', col= 'black',
-     xlab = "", ylab = "Energy sub metering")
-lines(dat$Time, dat$Sub_metering_2, col = 'red')
-lines(dat$Time, dat$Sub_metering_3, col = 'blue')
-legend('top', c("Sub_metering_1", "Sub_metering_2", "Sub_metering_3"),
-       lty = 1, col=c('black', 'red', 'blue'), bty='n', cex=0.75)
-
-# Plot Voltage series
-plot(dat$Time, dat$Voltage, type = "l", bg = 'white', col= 'black',
-     xlab = "datetime", ylab = "Voltage")
-
-# Plot Global Reactive Power series
-plot(dat$Time, dat$Global_reactive_power, type = "l", bg = 'white', col= 'black',
-     xlab = "datetime", ylab = "Global reactive power")
-
-# Copy to PGN file
-dev.copy(png, filename = "plot4.png", width = 480, height = 480)
+# Plot to PNG file
+library(ggplot2)
+ggplot(dat_cast, aes(as.factor(year), Emissions / 1e3)) + 
+      geom_bar(fill = 'orange') +
+      theme(plot.title = element_text(size = rel(1))) +
+      ggtitle(expression(paste("Total PM"[2.5],
+      " Emissions in the United States, 1999-2008 from Coal Combustion-related sources"))) +
+      xlab("Year") + ylab(expression(paste("Total PM"[2.5], " Emissions (thousand tons)")))
+dev.copy(png, filename = "plot4.png", width = 600)
 dev.off()
